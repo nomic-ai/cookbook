@@ -21,10 +21,9 @@ response = atlas.map_text(data=documents,
                           indexed_field='abstract',
                           id_field='id',
                           is_public=True,
-                          map_name='NeurIPS Proceedings 1987-2021',
+                          map_name='NeurIPS Proceedings 1987-2021 Demo',
                           map_description='All NeurIPS proceedings up to 2021 organized by abstract text.',
                           colorable_fields=['year'],
-                          num_workers=10,
                           build_topic_model=True,
                           reset_project_if_exists=True)
 print(response)
