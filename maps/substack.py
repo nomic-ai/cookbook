@@ -62,12 +62,16 @@ for index, row in df.iterrows():
 print(len(list(substacks.keys())))
 
 documents = []
+id = 0
 for item in substacks.values():
     posts = item.pop('posts')
     for post in posts:
         document = {**item, **post}
+        document['text'] = f"{document['title']} \n {document['subtitle']}"
+        document['id'] = id
+        id += 1
         documents.append(document)
 
 
-project = atlas.map_text(data=documents, indexed_field='title', name='Substack', description='Map of substack posts.')
+project = atlas.map_text(data=documents, id_field='id', indexed_field='text', name='Map of Substack', description='Map of substack posts.')
 
