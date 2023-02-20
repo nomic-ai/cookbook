@@ -1,7 +1,5 @@
-from nomic import AtlasClient
+from nomic import atlas
 import jsonlines
-
-atlas = AtlasClient()
 
 documents = []
 with jsonlines.open('maps/neurips_abstracts/neurips_87_21.jsonl') as reader:
@@ -21,8 +19,8 @@ response = atlas.map_text(data=documents,
                           indexed_field='abstract',
                           id_field='id',
                           is_public=True,
-                          map_name='NeurIPS Proceedings 1987-2021 Retry',
-                          map_description='All NeurIPS proceedings up to 2021 organized by abstract text.',
+                          name='NeurIPS Proceedings 1987-2021 Retry',
+                          description='All NeurIPS proceedings up to 2021 organized by abstract text.',
                           colorable_fields=['year'],
                           build_topic_model=True,
                           reset_project_if_exists=True)
