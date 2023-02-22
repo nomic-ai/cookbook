@@ -7,7 +7,6 @@ project = atlas.map_text(data=news_articles,
                          indexed_field='text',
                          id_field='id',
                          name='News Articles 25k',
-                         colorable_fields=['label'],
                          description='25k News articles.',
-                         reset_project_if_exists=True
+                         colorable_fields=['label'],
                          )
