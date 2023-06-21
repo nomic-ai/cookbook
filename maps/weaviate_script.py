@@ -1,5 +1,7 @@
 import weaviate
-from nomic import atlas
+
+# from nomic import atlas, AtlasProject
+from nomic import AtlasProject
 import numpy as np
 
 client = weaviate.Client(
@@ -35,46 +37,43 @@ def get_batch_with_cursor(
 
 
 for c, p in zip(classes, props):
-    response = get_batch_with_cursor(client, c, p, 1000)
+    project = AtlasProject(
+        name=c,
+        unique_id_field="id",
+        modality="embedding",
+    )
     count = 0
-    cursor = response["data"]["Get"][c][-1]["_additional"]["id"]
+    cursor = None
     while True:
-        temp = get_batch_with_cursor(client, c, p, 1000, cursor)
+        response = get_batch_with_cursor(client, c, p, 10000, cursor)
         count += 1
-        if len(temp["data"]["Get"][c]) == 0:
+        if len(response["data"]["Get"][c]) == 0:
             break
-        cursor = temp["data"]["Get"][c][-1]["_additional"]["id"]
-        response["data"]["Get"][c] += temp["data"]["Get"][c]
+        cursor = response["data"]["Get"][c][-1]["_additional"]["id"]
+        vectors = []
+        for i in response["data"]["Get"][c]:
+            vectors.append(i["_additional"]["vector"])
 
-    vectors = []
-    for i in response["data"]["Get"][c]:
-        vectors.append(i["_additional"]["vector"])
-
-    embeddings = np.array(vectors)
-    data = []
-    not_data = ["_additional", "vector", "id"]
-    for i in response["data"]["Get"][c]:
-        j = {key: value for key, value in i.items() if key not in not_data}
-        data.append(j)
-
-    if len(data) > 10000:
-        project = atlas.map_embeddings(
-            embeddings=embeddings[0:10000],
-            data=data[0:10000],
-            colorable_fields=p,
-        )
-        count = 10000
-        while count < len(data):
-            with project.wait_for_project_lock():
-                project.add_embeddings(
-                    embeddings=embeddings[count : count + min(len(data), 10000)],
-                    data=data[count : count + min(len(data), 10000)],
-                )
-            count += 10000
-
-    else:
-        project = atlas.map_embeddings(
-            embeddings=embeddings,
-            data=data,
-            colorable_fields=p,
-        )
+        embeddings = np.array(vectors)
+        data = []
+        not_data = ["_additional"]
+        un_data = ["vector"]
+        for i in response["data"]["Get"][c]:
+            j = {key: value for key, value in i.items() if key not in not_data}
+            k = {
+                key: value
+                for key, value in i["_additional"].items()
+                if key not in un_data
+            }
+            j = j | k
+            data.append(j)
+        with project.wait_for_project_lock():
+            project.add_embeddings(
+                embeddings=embeddings,
+                data=data,
+            )
+    project.rebuild_maps()
+    project.create_index(
+        name=c,
+        colorable_fields=p,
+    )
