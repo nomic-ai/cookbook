@@ -1,12 +1,9 @@
 import weaviate
-
-# from nomic import atlas, AtlasProject
 from nomic import AtlasProject
 import numpy as np
 
 client = weaviate.Client(
     url="WEAVIATE DATABASE URL",
-    # url="http://localhost:8080",
 )
 
 schema = client.schema.get()
@@ -78,5 +75,4 @@ for c, p in zip(classes, props):
         name=c,
         colorable_fields=p,
         build_topic_model=True,
-        topic_label_field="text",
     )
