@@ -2,6 +2,8 @@ import weaviate
 from nomic import AtlasProject
 import numpy as np
 
+nomic.login("NOMIC API KEY")
+
 client = weaviate.Client(
     url="WEAVIATE DATABASE URL",
 )
