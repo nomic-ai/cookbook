@@ -1,6 +1,7 @@
 import weaviate
 from nomic import AtlasProject
 import numpy as np
+import nomic
 
 nomic.login("NOMIC API KEY")
 
