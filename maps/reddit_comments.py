@@ -1,55 +1,44 @@
-import re
-import requests
-import pandas as pd
+import praw
 
-def extract_posts_id(url):
-  pattern = r'reddit\.com/r/[^/]+/comments/([^/]+)/'
-  match = re.search(pattern, url)
-  if match:
-    return match.group(1)
-  else:
-    raise ValueErro("Invalid Reddit Post URL")
-
-def get_post_comments(post_id, size=1000):
-  url = f'https://api.pushshift.io/reddit/comment/search/?link_id=t3_{post_id}&size={size}'
-
-  try:
-    response = requests.get{url}
-    response.raise_for_status()
-    data = response.json()
+def scrape_reddit_comments(url):
+    # Initialize praw with your credentials (create an app on Reddit to get these)
+    reddit = praw.Reddit(client_id='g1B_Pdsfwszzw5xbUf3i3g',
+                     client_secret='kZWNzy2Jje3gT32CHJrtf8p1Xdczow',
+                     user_agent='test-script/1.0 by ak-gom')
     
-    if 'data' not in data:
-      raise ValueErro("Unexpected response format: 'data' key not found.")
+    # Extract submission ID from the URL
+    submission_id = url.split('/')[-3]
 
-    comments = []
-    for comment in data['data']:
-      comments.append({
-        'id': comment['id'],
-        'author': comment['author'],
-        'body': comment['body'],
-        'created_utc': comment['created_utc'],
-        'score': comment['score'],
-        'parent_id': comment['parent_id'],
-      })
+    # Fetch the submission (post) using its ID
+    submission = reddit.submission(id=submission_id)
 
-    return pd.DataFrame(comments)
+    # Load all comments recursively
+    submission.comments.replace_more(limit=None)
+    comments = submission.comments.list()
 
-  except requests.exceptions.requestException as e:
-    print(f"HTTP Request failed: {e}")
-    return pd.DataFrame()
-  except ValueError as e:
-    print(f"Data processing error: {e}")
-    return pd.DataFrame()
+    # Extract and return all comment bodies
+    comment_bodies = [comment.body for comment in comments]
 
+    return comment_bodies
+
+# Function to save comments to a file
+def save_comments_to_file(comments, filename):
+    with open(filename, 'w', encoding='utf-8') as file:
+        for comment in comments:
+            file.write(comment + '\n')
+
+# Example usage:
 if __name__ == "__main__":
-  url = input("Enter the reddit post URL: ")
-  try:
-    post_id = extract_post_id(url)
-    comments_df = get_post_comments(post_id, size = 500)
-    print(comments_df.head())
-  except Valueerror as e:
-    print(e)
+    # Prompt user to input Reddit post URL
+    reddit_url = input("Enter Reddit post URL: ").strip()
 
-
-
-
+    # Call function to scrape comments
+    comments = scrape_reddit_comments(reddit_url)
+   
+    # Print all comment bodies
+    for comment in comments:
+        print(comment)
+   
+    # Save comments to a file
+    save_comments_to_file(comments, 'reddit_comments.txt')
+    print(f"Comments saved to 'reddit_comments.txt'")
