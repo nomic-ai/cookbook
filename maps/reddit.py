@@ -3,55 +3,9 @@ import csv
 import requests
 import os
 import nomic
-from itertools import islice  # Import islice for slicing iterators
-from prawcore.exceptions import PrawcoreException
+from itertools import islice
 from nomic import atlas
-
-def main():
-    try:
-        # Step 0: Log into Nomic with API token
-        nomic_api_key = 'nk-ffr2ynLSry7yzuot4AEaEGJdUW8Sc7YCk2Cc87yKdn0'
-        
-        # Step 1: Scrape comments from Reddit
-        reddit_url = input("Enter Reddit post URL: ").strip()
-        comments = scrape_reddit_comments(reddit_url)
-        
-        # Step 2: Save comments to CSV file
-        csv_filename = 'reddit_comments.csv'
-        save_to_csv(comments, csv_filename)
-        print(f"Comments saved to '{csv_filename}'")
-        
-        # Step 3: Upload data to Nomic
-        response_text = upload_to_nomic(csv_filename, nomic_api_key)
-        
-        if response_text is not None:
-            print("Response from Nomic:", response_text)  # Debug print response
-            
-            # Step 4: Convert response to list of dicts (assuming CSV data)
-            try:
-                response_lines = response_text.strip().split('\n')
-                response_data = [{'text': line} for line in response_lines]
-            except Exception as e:
-                print(f"Error converting Nomic response to list of dicts: {e}")
-                return
-            
-            # Step 5: Build a map on Atlas
-            try:
-                dataset = atlas.map_data(data=response_data,
-                                         indexed_field='text',
-                                         identifier='akanksha/my-test1-map',  # Adjust identifier if needed
-                                         description='Reddit comments mapped via automation.'
-                                        )
-                if 'id' in dataset.maps[0]:
-                    print("Map created on Atlas with ID:", dataset.maps[0]['id'])
-                    print("All done! Visit the map link to see the status of your map build.")
-                else:
-                    print("Map creation failed. Dataset ID not found in response.")
-            except Exception as e:
-                print(f"An error occurred while building map on Atlas: {e}")
-        
-    except Exception as e:
-        print("An error occurred:", e)
+from prawcore.exceptions import PrawcoreException
 
 # Function to scrape Reddit comments with pagination handling
 def scrape_reddit_comments(url):
@@ -70,7 +24,6 @@ def scrape_reddit_comments(url):
         return []
     
     comments = fetch_all_comments(submission)
-    
     print(f"Number of comments fetched: {len(comments)}")
     
     return comments
@@ -136,6 +89,7 @@ def upload_to_nomic(csv_filename, nomic_api_key):
                         print(f"Uploaded chunk {chunk_number} successfully.")
                     else:
                         print(f"Failed to upload chunk {chunk_number}. Status code: {response.status_code}")
+                        return None  # Exit if upload fails
                     
                 chunk_number += 1
                 os.remove(temp_filename)
@@ -149,6 +103,52 @@ def upload_to_nomic(csv_filename, nomic_api_key):
     except Exception as e:
         print(f"An error occurred during upload to Nomic: {e}")
         return None
+
+def main():
+    try:
+        # Step 0: Log into Nomic with API token
+        nomic_api_key = 'nk-ffr2ynLSry7yzuot4AEaEGJdUW8Sc7YCk2Cc87yKdn0'
+        
+        # Step 1: Scrape comments from Reddit
+        reddit_url = input("Enter Reddit post URL: ").strip()
+        comments = scrape_reddit_comments(reddit_url)
+        
+        # Step 2: Save comments to CSV file
+        csv_filename = 'reddit_comments.csv'
+        save_to_csv(comments, csv_filename)
+        print(f"Comments saved to '{csv_filename}'")
+        
+        # Step 3: Upload data to Nomic
+        response_text = upload_to_nomic(csv_filename, nomic_api_key)
+        
+        if response_text is not None:
+            print("Response from Nomic:", response_text)  # Debug print response
+            # Example: response_data = parse_response(response_text)
+            # Step 4: Convert response to list of dicts (assuming CSV data)
+            try:
+                response_lines = response_text.strip().split('\n')
+                response_data = [{'text': line} for line in response_lines]
+            except Exception as e:
+                print(f"Error converting Nomic response to list of dicts: {e}")
+                return
+            
+            # Step 5: Build a map on Atlas
+            try:
+                dataset = atlas.map_data(data=response_data,
+                                         indexed_field='text',
+                                         identifier='akanksha/my-test3-map',  # Adjust identifier if needed
+                                         description='Reddit comments mapped via automation.'
+                                        )
+                if 'id' in dataset.maps[0]:
+                    print("Map created on Atlas with ID:", dataset.maps[0]['id'])
+                    print("All done! Visit the map link to see the status of your map build.")
+                else:
+                    print("Map creation failed. Dataset ID not found in response.")
+            except Exception as e:
+                print(f"An error occurred while building map on Atlas: {e}")
+        
+    except Exception as e:
+        print("An error occurred:", e)
 
 if __name__ == "__main__":
     main()
