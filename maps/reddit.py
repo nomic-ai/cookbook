@@ -2,18 +2,16 @@ import praw
 import csv
 import requests
 import os
-import nomic
 from itertools import islice
-from nomic import atlas
 from prawcore.exceptions import PrawcoreException
+from nomic import atlas
 
 # Function to scrape Reddit comments with pagination handling
 def scrape_reddit_comments(url):
-    reddit = praw.Reddit(
-        client_id='g1B_Pdsfwszzw5xbUf3i3g',
-        client_secret='kZWNzy2Jje3gT32CHJrtf8p1Xdczow',
-        user_agent='test-script/1.0 by ak-gom'
-    )
+    reddit = praw.Reddit(client_id='g1B_Pdsfwszzw5xbUf3i3g',
+                     client_secret='kZWNzy2Jje3gT32CHJrtf8p1Xdczow',
+                     user_agent='test-script/1.0 by ak-gom')
+    
     submission_id = url.split('/')[-3]
     submission = reddit.submission(id=submission_id)
     
@@ -48,13 +46,13 @@ def fetch_replies(comment):
                 replies.extend(fetch_replies(reply))
     return replies
 
-# Function to save comments to CSV file
+# Function to save comments to CSV file in dataset format
 def save_to_csv(comments, filename):
     with open(filename, 'w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow(['text'])  # Write header
+        writer = csv.DictWriter(file, fieldnames=['text'])  # Specify fieldnames for the CSV
+        writer.writeheader()  # Write header
         for comment in comments:
-            writer.writerow([comment])
+            writer.writerow({'text': comment})  # Write each comment as a dictionary with 'text' key
 
 # Function to upload CSV to Nomic in chunks
 def upload_to_nomic(csv_filename, nomic_api_key):
@@ -118,35 +116,28 @@ def main():
         save_to_csv(comments, csv_filename)
         print(f"Comments saved to '{csv_filename}'")
         
-        # Step 3: Upload data to Nomic
-        response_text = upload_to_nomic(csv_filename, nomic_api_key)
+        # Step 3: Read CSV and format data for Atlas
+        my_data = []
+        with open(csv_filename, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                my_data.append(row)
         
-        if response_text is not None:
-            print("Response from Nomic:", response_text)  # Debug print response
-            # Example: response_data = parse_response(response_text)
-            # Step 4: Convert response to list of dicts (assuming CSV data)
-            try:
-                response_lines = response_text.strip().split('\n')
-                response_data = [{'text': line} for line in response_lines]
-            except Exception as e:
-                print(f"Error converting Nomic response to list of dicts: {e}")
-                return
-            
-            # Step 5: Build a map on Atlas
-            try:
-                dataset = atlas.map_data(data=response_data,
-                                         indexed_field='text',
-                                         identifier='akanksha/my-test3-map',  # Adjust identifier if needed
-                                         description='Reddit comments mapped via automation.'
-                                        )
-                if 'id' in dataset.maps[0]:
-                    print("Map created on Atlas with ID:", dataset.maps[0]['id'])
-                    print("All done! Visit the map link to see the status of your map build.")
-                else:
-                    print("Map creation failed. Dataset ID not found in response.")
-            except Exception as e:
-                print(f"An error occurred while building map on Atlas: {e}")
-        
+        # Step 4: Build a map on Atlas
+        try:
+            dataset = atlas.map_data(data=my_data,
+                                     indexed_field='text',
+                                     identifier='akanksha/my-test1-map',  # Adjust identifier if needed
+                                     description='Reddit comments mapped via automation.'
+                                    )
+            if dataset and 'id' in dataset:
+                print("Map created on Atlas with ID:", dataset['id'])
+                print("All done! Visit the map link to see the status of your map build.")
+            else:
+                print("Map creation failed. Dataset ID not found in response.")
+        except Exception as e:
+            print(f"An error occurred while building map on Atlas: {e}")
+    
     except Exception as e:
         print("An error occurred:", e)
 
