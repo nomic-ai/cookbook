@@ -1,85 +1,66 @@
-#Abhi Somala
-#06.18.2024
-#Atlas Developer Advocate Training: https://www.notion.so/nomic-ai/Atlas-Developer-Advocation-a08d32223bf54ef0aabfadb97d0d71a7
-#Github Commits - Given a url to a github repository, automatic create an AtlasDataset and AtlasMap of all commit messages to the repository.
+import requests
 import csv
 import os
-import requests
-from pathlib import Path
-from nomic import AtlasDataset
+import platform
+import subprocess
+from nomic import atlas
 
-def getCommits(repoURL):
-    # Gets the owner and repo from the URL
-    parts = repoURL.rstrip('/').split('/')
-    owner = parts[-2]
-    repo = parts[-1]
-
-    # Grabs info from general github template
-    apiURL = f"https://api.github.com/repos/{owner}/{repo}/commits"
-
-    # Requests to GitHub API
-    response = requests.get(apiURL)
+def fetch_commits(repo_url):
+    # Extract owner and repo name from the GitHub URL
     
-    # Makes sure it can get to the page successfully
-    if response.status_code == 200:
-        commits = response.json()
-        return commits
-    else: # Friendly output in case of error
-        print(f"Failed to fetch commits: {response.status_code}")
-        return None
+    owner, repo = repo_url.rstrip('/').split('/')[-2:]
+    
 
-def csvCommmit(commits, cvsName):
-    with open(cvsName, 'w', newline='') as csvfile:
-        fieldnames = ['id', 'message']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
 
-        writer.writeheader()
-        for i, commit in enumerate(commits):
-            writer.writerow({'id': i % 100000000, 'message': commit['commit']['message']})
+    commits = []
+    page = 1
 
-def mapMaker(cvsName):
-    # Read the CSV file and prepare data for AtlasDataset
-    data = []
-    with open(cvsName, newline='') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            data.append({'id': row['id'], 'text': row['message']})
+    while True:
+        response = requests.get(commits_url, params={'page': page, 'per_page': 100})
+        if response.status_code != 200:
+            print(f"Error fetching commits: {response.status_code}")
+            break
+        
+        page_commits = response.json()
+        if not page_commits:
+            break
 
-    # Create AtlasDataset and adds data to created dataset
-    dataset = AtlasDataset(
-        "github-commit-dataset",
-        unique_id_field="id",
-    )
+        for commit in page_commits:
+            commit_message = commit['commit']['message']
+            commits.append(commit_message)
+        
+        page += 1
 
-    dataset.add_data(data=data)
+    return commits
 
-    # Creates the map
-    map = dataset.create_index(
-        indexed_field='text',
-        topic_model=True,
-        duplicate_detection=True,
-        projection=None,
-        embedding_model='NomicEmbed'
-    )
+def save_commits_to_csv(commits, filename):
+    with open(filename, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(['ID', 'Commit Message'])
+        for idx, commit in enumerate(commits, start=1):
+            writer.writerow([idx, commit])
+    print(f"Commit messages have been saved to {filename}")
 
-    return map
+def open_file(filepath):
+    if platform.system() == "Darwin":       # macOS
+        subprocess.call(('open', filepath))
+    elif platform.system() == "Windows":    # Windows
+        os.startfile(filepath)
+    elif platform.system() == "Linux":      # Linux
+        subprocess.call(('xdg-open', filepath))
+
+
+def main():
+    repo_url = input("Please enter the GitHub Repository URL: ")
+    commits = fetch_commits(repo_url)
+    
+    if commits:
+        desktop_path = os.path.join(os.path.join(os.path.expanduser('~')), 'Desktop')
+        filename = os.path.join(desktop_path, 'commits.csv')
+        save_commits_to_csv(commits, filename)
+        open_file(filename)
+        
 
 if __name__ == "__main__":
-    repoURL = input("URL of Github Repository: ")
-    
-    commits = getCommits(repoURL)
-    if commits:
-        # Get the path to the desktop
-        desktop_path = str(Path.home() / "Desktop" / "commits.csv")
-        cvsName = desktop_path
-        
-        #Calls the 'csvCommit' function which creates the csv file with the github commit comments
-        csvCommmit(commits, cvsName)
-        print(f"Commits have been saved to {cvsName}")
-        
-        # Opens the file created
-        os.system(f"open {cvsName}")
-        
-        # Creates a map using the saved commit data
-        commit_map = mapMaker(cvsName)
-        print("Commit map has been created")
+    main()
