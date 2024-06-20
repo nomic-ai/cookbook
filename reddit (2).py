@@ -48,7 +48,8 @@ def main(client_id, client_secret, user_agent, reddit_url, nomic_api_key):
     try:
         dataset = atlas.map_data(data=my_data,
                                  indexed_field='text',
-                                 description='Reddit comments mapped via automation.'
+                                 description='Reddit comments mapped via automation.',
+                                 topic_model=True
                                 )
         if dataset and 'id' in dataset:
             print("Map created on Atlas with ID:", dataset['id'])
@@ -86,10 +87,14 @@ def fetch_all_comments(submission):
     comments = []
     submission.comments.replace_more(limit=None)
     for comment in submission.comments.list():
-        comments.append(comment.body)
+        comment_data = {
+            'text': comment.body,
+            'author': comment.author.name if comment.author else '[deleted]',
+            'score': comment.score
+        }
+        comments.append(comment_data)
         comments.extend(fetch_replies(comment))
     return comments
-
 # Function to fetch replies recursively (modified to fit)
 def fetch_replies(comment):
     replies = []
@@ -97,18 +102,23 @@ def fetch_replies(comment):
         if hasattr(comment, 'replies') and isinstance(comment.replies, praw.models.comment_forest.CommentForest):
             comment.replies.replace_more(limit=None)
             for reply in comment.replies.list():
-                replies.append(reply.body)
+                reply_data = {
+                    'text': reply.body,
+                    'author': reply.author.name if reply.author else '[deleted]',
+                    'score': reply.score
+                }
+                replies.append(reply_data)
                 replies.extend(fetch_replies(reply))
     return replies
 
 # Function to save comments to CSV file (modified to fit)
 def save_to_csv(comments, filename):
+    unique_comments = {comment['text']: comment for comment in comments}.values()  # Ensure unique comments by text
+    fieldnames = ['text', 'author', 'score']  # Define fieldnames
     with open(filename, 'w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow(['text'])  # Write header
-        writer.writerows([[comment] for comment in comments])  # Write each comment as a list
-
-    print(f"Comments saved to '{filename}'")
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(unique_comments)
 
 # Function to upload CSV to Nomic (modified to fit)
 def upload_to_nomic(csv_filename, nomic_api_key):
@@ -131,7 +141,7 @@ def upload_to_nomic(csv_filename, nomic_api_key):
                 temp_filename = f'temp_chunk_{chunk_number}.csv'
                 with open(temp_filename, 'w', newline='', encoding='utf-8') as temp_file:
                     writer = csv.writer(temp_file)
-                    writer.writerow(['text'])
+                    writer.writerow(['text', 'author', 'score'])  # Write header
                     writer.writerows(chunk)
                 
                 with open(temp_filename, 'rb') as temp_file:
