@@ -1,32 +1,87 @@
 import praw
+import click
+import os
 import csv
 import requests
-import os
+import nomic
 from itertools import islice
-from prawcore.exceptions import PrawcoreException
 from nomic import atlas
+from prawcore.exceptions import PrawcoreException
+import time
 
-# Function to scrape Reddit comments with pagination handling
-def scrape_reddit_comments(url):
-    reddit = praw.Reddit(client_id='g1B_Pdsfwszzw5xbUf3i3g',
-                         client_secret='kZWNzy2Jje3gT32CHJrtf8p1Xdczow',
-                         user_agent='test-script/1.0 by ak-gom')
+# Function to get Reddit instance using provided credentials
+def get_reddit_instance(client_id, client_secret, user_agent):
+    reddit = praw.Reddit(
+        client_id=client_id,
+        client_secret=client_secret,
+        user_agent=user_agent
+    )
+    return reddit
+
+@click.command()
+@click.option('--client-id', prompt='Enter your Reddit client ID', help='Reddit client ID')
+@click.option('--client-secret', prompt='Enter your Reddit client secret', hide_input=True, help='Reddit client secret')
+@click.option('--user-agent', prompt='Enter your Reddit user agent', help='Reddit user agent')
+@click.option('--reddit-url', prompt='Enter Reddit post URL', help='URL of the Reddit post')
+@click.option('--nomic-api-key', prompt='Enter your Nomic API', help='Nomic API key')
+def main(client_id, client_secret, user_agent, reddit_url, nomic_api_key):
+    # Step 1: Get Reddit instance
+    reddit = get_reddit_instance(client_id, client_secret, user_agent)
     
-    submission_id = url.split('/')[-3]
+    # Step 2: Scrape comments from Reddit
+    submission_id = reddit_url.split('/')[-3]
     submission = reddit.submission(id=submission_id)
-    
-    try:
-        submission.comments.replace_more(limit=None)
-    except PrawcoreException as e:
-        print(f"Error replacing more comments: {e}")
-        return []
-    
-    comments = fetch_all_comments(submission)
-    print(f"Number of comments fetched: {len(comments)}")
-    
-    return comments
+    comments = scrape_reddit_comments(reddit, submission)
 
-# Recursive function to fetch all comments
+    csv_filename = 'reddit_comments.csv'
+    save_to_csv(comments, csv_filename)  
+    print(f"Comments saved to '{csv_filename}'")
+        
+    # Step 3: Read CSV and format data for Atlas
+    my_data = []
+    with open(csv_filename, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            my_data.append(row)
+        
+    # Step 4: Build a map on Atlas
+    try:
+        dataset = atlas.map_data(data=my_data,
+                                 indexed_field='text',
+                                 description='Reddit comments mapped via automation.'
+                                )
+        if dataset and 'id' in dataset:
+            print("Map created on Atlas with ID:", dataset['id'])
+            print("All done! Visit the map link to see the status of your map build.")
+        else:
+            print("Map creation failed. Dataset ID not found in response.")
+    except Exception as e:
+        print(f"An error occurred while building map on Atlas: {e}")
+
+# Function to scrape Reddit comments with retry on rate limit
+def scrape_reddit_comments(reddit, submission):
+    max_attempts = 5  # Maximum retry attempts
+    current_attempt = 0
+    while current_attempt < max_attempts:
+        try:
+            submission.comments.replace_more(limit=None)
+            comments = fetch_all_comments(submission)
+            print(f"Number of comments fetched: {len(comments)}")
+            return comments
+        except PrawcoreException as e:
+            if e.response and e.response.status_code == 429:
+                delay = 2 ** current_attempt  # Exponential backoff
+                print(f"Rate limit exceeded. Retrying in {delay} seconds...")
+                time.sleep(delay)
+                current_attempt += 1
+            else:
+                print(f"Error scraping comments: {e}")
+                return []
+    
+    print("Max retry attempts reached. Could not fetch comments.")
+    return []
+
+# Function to fetch all comments (modified to fit)
 def fetch_all_comments(submission):
     comments = []
     submission.comments.replace_more(limit=None)
@@ -35,7 +90,7 @@ def fetch_all_comments(submission):
         comments.extend(fetch_replies(comment))
     return comments
 
-# Function to fetch replies recursively
+# Function to fetch replies recursively (modified to fit)
 def fetch_replies(comment):
     replies = []
     if isinstance(comment, praw.models.reddit.comment.Comment):
@@ -46,7 +101,7 @@ def fetch_replies(comment):
                 replies.extend(fetch_replies(reply))
     return replies
 
-# Function to save comments to CSV file
+# Function to save comments to CSV file (modified to fit)
 def save_to_csv(comments, filename):
     with open(filename, 'w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
@@ -55,8 +110,9 @@ def save_to_csv(comments, filename):
 
     print(f"Comments saved to '{filename}'")
 
-# Function to upload CSV to Nomic in chunks
-def upload_to_nomic(csv_filename, nomic_api_key, nomic_upload_url):
+# Function to upload CSV to Nomic (modified to fit)
+def upload_to_nomic(csv_filename, nomic_api_key):
+    url = 'https://atlas.nomic.ai/data/akanksha?step=1'
     headers = {
         'Authorization': f'Bearer {nomic_api_key}',
     }
@@ -80,7 +136,8 @@ def upload_to_nomic(csv_filename, nomic_api_key, nomic_upload_url):
                 
                 with open(temp_filename, 'rb') as temp_file:
                     files = {'file': temp_file}
-                    response = requests.post(nomic_upload_url, headers=headers, files=files)
+                    # Replace with actual API endpoint for Nomic upload if available
+                    response = requests.post(url, headers=headers, files=files)
                     
                     # Check response status
                     if response.status_code == 200:
@@ -101,43 +158,6 @@ def upload_to_nomic(csv_filename, nomic_api_key, nomic_upload_url):
     except Exception as e:
         print(f"An error occurred during upload to Nomic: {e}")
         return None
-
-def main():
-    try:
-        # Step 0: Log into Nomic with API token
-        nomic_api_key = input("Enter your Nomic API: ")
-        
-        # Step 1: Scrape comments from Reddit
-        reddit_url = input("Enter Reddit post URL: ").strip()
-        comments = scrape_reddit_comments(reddit_url)
-        
-        # Step 2: Save comments to CSV file
-        csv_filename = 'reddit_comments.csv'
-        save_to_csv(comments, csv_filename)
-        
-        # Step 3: Read CSV and format data for Atlas
-        my_data = []
-        with open(csv_filename, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                my_data.append(row)
-        
-        # Step 4: Build a map on Atlas
-        try:
-            dataset = atlas.map_data(data=my_data,
-                                     indexed_field='text',
-                                     description='Reddit comments mapped via automation.'
-                                    )
-            if dataset and 'id' in dataset:
-                print("Map created on Atlas with ID:", dataset['id'])
-                print("All done! Visit the map link to see the status of your map build.")
-            else:
-                print("Map creation failed. Dataset ID not found in response.")
-        except Exception as e:
-            print(f"An error occurred while building map on Atlas: {e}")
-    
-    except Exception as e:
-        print("An error occurred:", e)
 
 if __name__ == "__main__":
     main()
