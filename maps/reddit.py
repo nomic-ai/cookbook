@@ -5,12 +5,16 @@ import os
 from itertools import islice
 from prawcore.exceptions import PrawcoreException
 from nomic import atlas
+import modal
+
+app = modal.App("reddit-comments-app")
 
 # Function to scrape Reddit comments with pagination handling
+@app.function()
 def scrape_reddit_comments(url):
     reddit = praw.Reddit(client_id='g1B_Pdsfwszzw5xbUf3i3g',
-                     client_secret='kZWNzy2Jje3gT32CHJrtf8p1Xdczow',
-                     user_agent='test-script/1.0 by ak-gom')
+                         client_secret='kZWNzy2Jje3gT32CHJrtf8p1Xdczow',
+                         user_agent='test-script/1.0 by ak-gom')
     
     submission_id = url.split('/')[-3]
     submission = reddit.submission(id=submission_id)
@@ -47,6 +51,7 @@ def fetch_replies(comment):
     return replies
 
 # Function to save comments to CSV file in dataset format
+@app.function()
 def save_to_csv(comments, filename):
     with open(filename, 'w', newline='', encoding='utf-8') as file:
         writer = csv.DictWriter(file, fieldnames=['text'])  # Specify fieldnames for the CSV
@@ -55,8 +60,8 @@ def save_to_csv(comments, filename):
             writer.writerow({'text': comment})  # Write each comment as a dictionary with 'text' key
 
 # Function to upload CSV to Nomic in chunks
+@app.function()
 def upload_to_nomic(csv_filename, nomic_api_key):
-    url = 'https://atlas-next-prod.vercel.app/data/akanksha/my-second-map'
     headers = {
         'Authorization': f'Bearer {nomic_api_key}',
     }
@@ -105,15 +110,15 @@ def upload_to_nomic(csv_filename, nomic_api_key):
 def main():
     try:
         # Step 0: Log into Nomic with API token
-        nomic_api_key = 'nk-ffr2ynLSry7yzuot4AEaEGJdUW8Sc7YCk2Cc87yKdn0'
+        nomic_api_key = input("Enter your Nomic API: ")
         
         # Step 1: Scrape comments from Reddit
         reddit_url = input("Enter Reddit post URL: ").strip()
-        comments = scrape_reddit_comments(reddit_url)
+        comments = scrape_reddit_comments.remote(reddit_url)
         
         # Step 2: Save comments to CSV file
         csv_filename = 'reddit_comments.csv'
-        save_to_csv(comments, csv_filename)
+        save_to_csv.remote(comments, csv_filename)
         print(f"Comments saved to '{csv_filename}'")
         
         # Step 3: Read CSV and format data for Atlas
@@ -127,7 +132,6 @@ def main():
         try:
             dataset = atlas.map_data(data=my_data,
                                      indexed_field='text',
-                                     identifier='akanksha/my-test1-map',  # Adjust identifier if needed
                                      description='Reddit comments mapped via automation.'
                                     )
             if dataset and 'id' in dataset:
