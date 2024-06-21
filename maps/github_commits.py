@@ -3,8 +3,8 @@ import os
 import subprocess
 from pathlib import Path
 from nomic import AtlasDataset
-
-#clones repo locally
+# additional columns, new datasets, additional columns, timestamps single map with multiple datasets
+#clones repo locally # AUTOMATICALLY DETERMINE NAME
 def clone_repo(repo_url, repo_path):
     if not os.path.exists(repo_path):
         subprocess.run(['git', 'clone', '--mirror', repo_url, repo_path])
@@ -57,8 +57,6 @@ def create_commit_map(csv_filename):
     map = dataset.create_index(
         indexed_field='text',
         topic_model=True,
-        duplicate_detection=True,
-        projection=None,
         embedding_model='NomicEmbed'
     )
 
@@ -89,8 +87,3 @@ if __name__ == "__main__":
         
         commit_map = create_commit_map(csv_filename)
         print("Commit map has been created")
-
-
-
-
-
