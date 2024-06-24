@@ -1,9 +1,7 @@
 import praw
 import click
-import os
-import csv
-import requests
-from itertools import islice
+import pandas as pd
+import pyarrow as pa
 from nomic import atlas
 from prawcore.exceptions import PrawcoreException
 import time
@@ -28,21 +26,12 @@ def main(client_id, client_secret, user_agent, reddit_url, nomic_api_key):
     submission_id = reddit_url.split('/')[-3]
     submission = reddit.submission(id=submission_id)
     comments = scrape_reddit_comments(reddit, submission)
-
-    csv_filename = 'reddit_comments.csv'
-    save_to_csv(comments, csv_filename)  
-    print(f"Comments saved to '{csv_filename}'")
-        
-    my_data = []
-    with open(csv_filename, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            my_data.append(row)
     
-    print(f"Number of comments saved: {len(my_data)}")  # Debugging print
+    # Convert comments to Apache Arrow table
+    arrow_table = comments_to_arrow_table(comments)
     
     try:
-        dataset = atlas.map_data(data=my_data,
+        dataset = atlas.map_data(data=arrow_table,
                                  indexed_field='text',
                                  description='Reddit comments mapped via automation.',
                                  topic_model=True
@@ -77,7 +66,6 @@ def scrape_reddit_comments(reddit, submission):
     print("Max retry attempts reached. Could not fetch comments.")
     return []
 
-
 def fetch_all_comments(submission):
     comments = []
     submission.comments.replace_more(limit=None)
@@ -106,15 +94,14 @@ def fetch_replies(comment):
                 replies.extend(fetch_replies(reply))
     return replies
 
-
-def save_to_csv(comments, filename):
-    unique_comments = {comment['text']: comment for comment in comments}.values()  
-    fieldnames = ['text', 'author', 'score']  
-    with open(filename, 'w', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(unique_comments)
-
+def comments_to_arrow_table(comments):
+    # Convert comments list to Pandas DataFrame
+    df = pd.DataFrame(comments)
+    
+    # Convert Pandas DataFrame to Apache Arrow table
+    arrow_table = pa.Table.from_pandas(df)
+    
+    return arrow_table
 
 if __name__ == "__main__":
     main()
