@@ -5,7 +5,8 @@ from pathlib import Path
 from datetime import datetime
 from nomic import AtlasDataset
 import tempfile
-#UPDATES: Adaptive map and csv file name, creates a tmp directory that (should) deletes itself after its done
+
+# Currently only one github repo can be inputted at a time. Can run repos having over 1 mill commits but it takes time
 
 # Clones repo
 def clone_repo(repo_url, repo_path):
