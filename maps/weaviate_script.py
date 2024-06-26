@@ -1,9 +1,9 @@
 import weaviate
-from nomic import AtlasProject
+from nomic import AtlasDataset
 import numpy as np
 import nomic
 
-nomic.login("NOMIC API KEY")
+nomic.login("YOUR NOMIC API KEY")
 
 client = weaviate.Client(
     url="WEAVIATE DATABASE URL",
@@ -38,11 +38,8 @@ def get_batch_with_cursor(
 
 
 for c, p in zip(classes, props):
-    project = AtlasProject(
-        name=c,
-        unique_id_field="id",
-        modality="embedding",
-    )
+    dataset = AtlasDataset(identifier=c, unique_id_field="id")  # Initialize AtlasDataset
+
     count = 0
     cursor = None
     while True:
@@ -52,30 +49,24 @@ for c, p in zip(classes, props):
             break
         cursor = response["data"]["Get"][c][-1]["_additional"]["id"]
         vectors = []
+        data = []
         for i in response["data"]["Get"][c]:
             vectors.append(i["_additional"]["vector"])
 
+            metadata = {key: value for key, value in i.items() if key != "_additional"}
+            data.append(metadata)
+
         embeddings = np.array(vectors)
-        data = []
-        not_data = ["_additional"]
-        un_data = ["vector"]
-        for i in response["data"]["Get"][c]:
-            j = {key: value for key, value in i.items() if key not in not_data}
-            k = {
-                key: value
-                for key, value in i["_additional"].items()
-                if key not in un_data
-            }
-            j = j | k
-            data.append(j)
-        with project.wait_for_project_lock():
-            project.add_embeddings(
-                embeddings=embeddings,
-                data=data,
-            )
-    project.rebuild_maps()
-    project.create_index(
-        name=c,
-        colorable_fields=p,
-        build_topic_model=True,
-    )
+        
+        # Add data to the dataset
+        dataset.add_data(data=data, embeddings=embeddings)
+
+    # Create index in the dataset
+    index_options = {
+        "indexed_field": p,
+        "modality": "embedding",
+        "topic_model": True,
+        "duplicate_detection": True,
+        "embedding_model": "NomicEmbed",
+    }
+    dataset.create_index(name=c, **index_options)
