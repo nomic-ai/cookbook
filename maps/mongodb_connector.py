@@ -1,5 +1,5 @@
 import pymongo as pm
-from nomic import atlasdataset
+from nomic import AtlasDataset
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import pandas as pd
@@ -37,13 +37,12 @@ for d in data:
 # Insert data into MongoDB collection
 collection.insert_many(data)
 
-# Read MongoDB collection with embeddings and map it using AtlasProject
-project = AtlasProject(
-    name='MongoDB Stack Overflow Questions',
-    unique_id_field='mongo_id',
-    reset_project_if_exists=True,
+# Read MongoDB collection with embeddings and map it using AtlasDataset
+dataset = AtlasDataset(
+    "MongoDB_StackOverflow_Questions",
+    unique_id_field="mongo_id",
+    reset_dataset_if_exists=True,
     is_public=True,
-    modality='embedding',
 )
 
 # Retrieve all items from MongoDB collection
@@ -52,22 +51,24 @@ all_items = list(collection.find())
 # Extract embeddings into numpy array
 embs = np.array([d['title_embedding'] for d in all_items])
 
-# Prepare items for AtlasProject by converting _id to mongo_id and removing embeddings
+# Prepare items for AtlasDataset by converting _id to mongo_id and removing embeddings
 for d in all_items:
     d['mongo_id'] = str(d['_id'])
     del d['title_embedding']
     del d['_id']
 
-# Add embeddings to AtlasProject
-project.add_embeddings(all_items, embs)
+# Add embeddings to AtlasDataset
+dataset.add_data(data=all_items, embeddings=embs)
 
-# Rebuild maps and create index for topic modeling
-project.rebuild_maps()
-project.create_index(
-    name='MongoDB Stack Overflow Questions',
-    topic_label_field='body',  # Replace with appropriate field for topic modeling
-    build_topic_model=True,
-)
+# Create index in the dataset
+index_options = {
+    "indexed_field": "title",  # Replace with appropriate field for indexing
+    "modality": "embedding",
+    "topic_model": True,
+    "duplicate_detection": True,
+    "embedding_model": "NomicEmbed",
+}
+dataset.create_index(name="MongoDB_StackOverflow_Questions", **index_options)
 
-# Print information about the AtlasProject
-print(project)
+# Print information about the AtlasDataset
+print(dataset)
