@@ -6,7 +6,6 @@ from datetime import datetime
 from nomic import AtlasDataset
 import tempfile
 
-# Currently only one github repo can be inputted at a time. Can run repos having over 1 mill commits but it takes time
 
 # Clones repo
 def clone_repo(repo_url, repo_path):
@@ -52,8 +51,28 @@ def save_commits_to_csv(commits, csv_filename):
         for commit in commits:
             writer.writerow(commit)
 
-# Creates map
-def create_commit_map(csv_filename, map_name):
+# Creates map from a list of commits
+def create_commit_map_from_commits(commits, map_name):
+    if not commits:
+        raise ValueError("No commits found.")
+
+    dataset = AtlasDataset(
+        map_name,
+        unique_id_field="id",
+    )
+    dataset.add_data(data=commits)
+
+    map = dataset.create_index(
+         # Indexes by message
+        indexed_field='message', 
+        topic_model=True,
+        embedding_model='NomicEmbed'
+    )
+
+    return map
+
+# Creates map from a CSV file
+def create_commit_map_from_csv(csv_filename, map_name):
     data = []
     with open(csv_filename, newline='', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -70,7 +89,8 @@ def create_commit_map(csv_filename, map_name):
     dataset.add_data(data=data)
 
     map = dataset.create_index(
-        indexed_field='message',  #Indexs by message
+        # Indexes by message
+        indexed_field='message',  
         topic_model=True,
         embedding_model='NomicEmbed'
     )
@@ -79,13 +99,16 @@ def create_commit_map(csv_filename, map_name):
 
 if __name__ == "__main__":
     repo_urls = input("Enter GitHub Repository URLs separated by commas: ").split(',')
-    all_commits = [] #An attempt at allowing multiple github repos, however it doesnt work
-    repo_names = [] #still trying to figure it out - saying that there isnt enough data points (even though there is)
+    #Optional choice to make it a csv file
+    save_to_csv = input("Do you want to save commits to CSV? (yes/no): ").strip().lower() == 'yes' 
+    all_commits = [] 
+    repo_names = [] 
 
     # Create a temp directory
     with tempfile.TemporaryDirectory() as temp_dir:
         for repo_url in repo_urls:
-            repo_name = repo_url.rstrip('/').split('/')[-1].strip()  # Grabs info from git repo to make map name
+             # Grabs info from git repo to make map name
+            repo_name = repo_url.rstrip('/').split('/')[-1].strip() 
             repo_names.append(repo_name)
             repo_path = os.path.join(temp_dir, repo_name)
 
@@ -96,19 +119,27 @@ if __name__ == "__main__":
                 all_commits.extend(commits)
 
         if all_commits:
-            combined_repo_names = '_'.join(repo_names)  # Combines repo names with underscores
-            csv_filename = os.path.join(temp_dir, f"{combined_repo_names}_commits.csv")
+            # Combines repo names with underscores
+            combined_repo_names = '_'.join(repo_names)  
 
-            save_commits_to_csv(all_commits, csv_filename)
-            print(f"Combined commits have been saved to {csv_filename}")
+            if save_to_csv:
+                csv_filename = os.path.join(temp_dir, f"{combined_repo_names}_commits.csv")
+                save_commits_to_csv(all_commits, csv_filename)
+                print(f"Combined commits have been saved to {csv_filename}")
 
-            map_name = os.path.splitext(os.path.basename(csv_filename))[0]
-
-            try:
-                commit_map = create_commit_map(csv_filename, map_name)
-                print(f"Commit map '{map_name}' has been created")
-            except ValueError as e:
-                print(f"Error creating commit map: {e}")
+                map_name = os.path.splitext(os.path.basename(csv_filename))[0]
+                try:
+                    commit_map = create_commit_map_from_csv(csv_filename, map_name)
+                    print(f"Commit map '{map_name}' has been created")
+                except ValueError as e:
+                    print(f"Error creating commit map: {e}")
+            else:
+                map_name = combined_repo_names
+                try:
+                    commit_map = create_commit_map_from_commits(all_commits, map_name)
+                    print(f"Commit map '{map_name}' has been created")
+                except ValueError as e:
+                    print(f"Error creating commit map: {e}")
         else:
             print("No commits were found for the provided repositories.")
 
