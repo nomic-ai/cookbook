@@ -1,5 +1,5 @@
 import pymongo as pm
-from nomic import atlas
+from nomic import atlasdataset
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import pandas as pd
