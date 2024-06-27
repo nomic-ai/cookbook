@@ -49,6 +49,7 @@ def scrape_reddit_comments(reddit, submission):
     while current_attempt < max_attempts:
         try:
             submission.comments.replace_more(limit=None)
+            time.sleep(1)  # Add a delay between replace_more() calls
             comments = fetch_all_comments(submission)
             print(f"Number of comments fetched: {len(comments)}")
             return comments
@@ -64,7 +65,7 @@ def scrape_reddit_comments(reddit, submission):
 
     print("Max retry attempts reached. Could not fetch comments.")
     return []
-
+    
 def fetch_all_comments(submission):
     comments = []
     submission.comments.replace_more(limit=None)
