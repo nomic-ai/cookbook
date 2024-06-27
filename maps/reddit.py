@@ -22,19 +22,23 @@ def get_reddit_instance(client_id, client_secret, user_agent):
 @click.option('--nomic-api-key', prompt='Enter your Nomic API', help='Nomic API key')
 def main(client_id, client_secret, user_agent, reddit_url, nomic_api_key):
     reddit = get_reddit_instance(client_id, client_secret, user_agent)
-    
-    submission_id = reddit_url.split('/')[-3]
-    submission = reddit.submission(id=submission_id)
+
+    submission = reddit.submission(url=reddit_url)  # Use submission URL directly
+
     comments = scrape_reddit_comments(reddit, submission)
-    
+
     # Convert comments to Apache Arrow table
     arrow_table = comments_to_arrow_table(comments)
-    
+
     try:
+        # Generate map name based on Reddit post title
+        map_name = f"Reddit_Post_{submission.title}"
+
         dataset = atlas.map_data(data=arrow_table,
                                  indexed_field='text',
                                  description='Reddit comments mapped via automation.',
-                                 topic_model=True
+                                 topic_model=True,
+                                 map_name=map_name  # Use generated map name
                                 )
         if dataset and 'id' in dataset:
             print("Map created on Atlas with ID:", dataset['id'])
@@ -62,7 +66,7 @@ def scrape_reddit_comments(reddit, submission):
             else:
                 print(f"Error scraping comments: {e}")
                 return []
-    
+
     print("Max retry attempts reached. Could not fetch comments.")
     return []
 
@@ -97,10 +101,10 @@ def fetch_replies(comment):
 def comments_to_arrow_table(comments):
     # Convert comments list to Pandas DataFrame
     df = pd.DataFrame(comments)
-    
+
     # Convert Pandas DataFrame to Apache Arrow table
     arrow_table = pa.Table.from_pandas(df)
-    
+
     return arrow_table
 
 if __name__ == "__main__":
