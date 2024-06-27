@@ -1,9 +1,9 @@
-import praw
 import click
 import pandas as pd
 import pyarrow as pa
 from nomic import atlas
 from prawcore.exceptions import PrawcoreException
+import praw
 import time
 
 def get_reddit_instance(client_id, client_secret, user_agent):
@@ -22,24 +22,19 @@ def get_reddit_instance(client_id, client_secret, user_agent):
 @click.option('--nomic-api-key', prompt='Enter your Nomic API', help='Nomic API key')
 def main(client_id, client_secret, user_agent, reddit_url, nomic_api_key):
     reddit = get_reddit_instance(client_id, client_secret, user_agent)
-
-    submission = reddit.submission(url=reddit_url)  # Use submission URL directly
+    submission = reddit.submission(url=reddit_url)
 
     comments = scrape_reddit_comments(reddit, submission)
-
-    # Convert comments to Apache Arrow table
     arrow_table = comments_to_arrow_table(comments)
 
     try:
-        # Generate map name based on Reddit post title
-        map_name = f"Reddit_Post_{submission.title}"
+        map_name = f"[Reddit Post] {submission.title}"
 
         dataset = atlas.map_data(data=arrow_table,
                                  indexed_field='text',
                                  description='Reddit comments mapped via automation.',
                                  topic_model=True,
-                                 map_name=map_name  # Use generated map name
-                                )
+                                 map_name=map_name)
         if dataset and 'id' in dataset:
             print("Map created on Atlas with ID:", dataset['id'])
             print("All done! Visit the map link to see the status of your map build.")
@@ -77,7 +72,9 @@ def fetch_all_comments(submission):
         comment_data = {
             'text': comment.body,
             'author': comment.author.name if comment.author else '[deleted]',
-            'score': comment.score
+            'score': comment.score,
+            'depth': comment.depth,
+            'created_utc': comment.created_utc
         }
         comments.append(comment_data)
         comments.extend(fetch_replies(comment))
@@ -92,19 +89,17 @@ def fetch_replies(comment):
                 reply_data = {
                     'text': reply.body,
                     'author': reply.author.name if reply.author else '[deleted]',
-                    'score': reply.score
+                    'score': reply.score,
+                    'depth': reply.depth,
+                    'created_utc': reply.created_utc
                 }
                 replies.append(reply_data)
                 replies.extend(fetch_replies(reply))
     return replies
 
 def comments_to_arrow_table(comments):
-    # Convert comments list to Pandas DataFrame
     df = pd.DataFrame(comments)
-
-    # Convert Pandas DataFrame to Apache Arrow table
     arrow_table = pa.Table.from_pandas(df)
-
     return arrow_table
 
 if __name__ == "__main__":
