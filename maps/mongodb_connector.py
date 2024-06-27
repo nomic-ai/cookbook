@@ -1,46 +1,50 @@
 import pymongo as pm
-from nomic import AtlasDataset
-from sentence_transformers import SentenceTransformer
-import numpy as np
 import pandas as pd
 from pathlib import Path
+from nomic import AtlasDataset, embed
+import numpy as np
 
 # Replace with your MongoDB connection string and certificate file path
-client = pm.MongoClient('mongodb+srv://<username>:<password>@cluster0.l3jhqfs.mongodb.net/testdb'
-                        '?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority',
-                        tls=True,
-                        tlsCertificateKeyFile='mongocert.pem')
+client = pm.MongoClient(
+    'mongodb+srv://<username>:<password>@cluster0.l3jhqfs.mongodb.net/testdb'
+    '?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority',
+    tls=True,
+    tlsCertificateKeyFile='mongocert.pem'
+)
 
-collection = client.testdb.testcoll
+# Access or create MongoDB collection
+db = client.testdb
+collection = db.mongo_so
 
-# Delete current content of collection
+# Clear existing content in collection
 collection.delete_many({})
 
-# Load embedding data into MongoDB
+# Load data into DataFrame
 mongo_so = pd.read_parquet(Path.cwd() / 'data' / 'mongo-so.parquet')
 
-# Initialize SentenceTransformer model
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# Initialize Nomic text embedding model
+output = embed.text(
+    texts=mongo_so['title'].tolist(),
+    model='nomic-embed-text-v1.5',
+    inference_mode='local',  # Use local inference
+)
 
-# Encode titles into embeddings
-title_embeds = model.encode(mongo_so['title'].tolist())
+# Extract embeddings
+title_embeds = output['embeddings']
 
 # Assign embeddings to DataFrame
-mso_te = mongo_so.assign(title_embedding=list(title_embeds))
+mongo_so['title_embedding'] = title_embeds
 
 # Convert DataFrame to list of dictionaries for MongoDB insertion
-data = mso_te.to_dict(orient='records')
-for d in data:
-    del d['Index']
-    d['title_embedding'] = d['title_embedding'].tolist()
+data = mongo_so.to_dict(orient='records')
 
 # Insert data into MongoDB collection
 collection.insert_many(data)
 
-# Read MongoDB collection with embeddings and map it using AtlasDataset
+# Initialize AtlasDataset for mapped data
 dataset = AtlasDataset(
     "MongoDB_StackOverflow_Questions",
-    unique_id_field="mongo_id",
+    unique_id_field="mongo_id",  # Replace with appropriate unique identifier field
     is_public=True,
 )
 
@@ -56,7 +60,7 @@ for d in all_items:
     del d['title_embedding']
     del d['_id']
 
-# Add embeddings to AtlasDataset
+# Add data and embeddings to AtlasDataset
 dataset.add_data(data=all_items, embeddings=embs)
 
 # Create index in the dataset
@@ -65,7 +69,7 @@ index_options = {
     "modality": "embedding",
     "topic_model": True,
     "duplicate_detection": True,
-    "embedding_model": "NomicEmbed",
+    "embedding_model": "nomic-embed-text-v1.5",  # Specify Nomic embedding model
 }
 dataset.create_index(**index_options)
 
