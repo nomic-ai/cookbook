@@ -41,7 +41,6 @@ collection.insert_many(data)
 dataset = AtlasDataset(
     "MongoDB_StackOverflow_Questions",
     unique_id_field="mongo_id",
-    reset_dataset_if_exists=True,
     is_public=True,
 )
 
@@ -68,7 +67,7 @@ index_options = {
     "duplicate_detection": True,
     "embedding_model": "NomicEmbed",
 }
-dataset.create_index(name="MongoDB_StackOverflow_Questions", **index_options)
+dataset.create_index(**index_options)
 
 # Print information about the AtlasDataset
 print(dataset)
