@@ -28,13 +28,13 @@ def main(client_id, client_secret, user_agent, reddit_url, nomic_api_key):
     arrow_table = comments_to_arrow_table(comments)
 
     try:
-        map_name = f"[Reddit Post] {submission.title}"
+        map_name = f"[Reddit Comment Thread] {submission.title}"  # Updated map name
 
         dataset = atlas.map_data(data=arrow_table,
                                  indexed_field='text',
                                  description='Reddit comments mapped via automation.',
                                  topic_model=True,
-                                 map_name=map_name)
+                                 identifier=map_name)
         if dataset and 'id' in dataset:
             print("Map created on Atlas with ID:", dataset['id'])
             print("All done! Visit the map link to see the status of your map build.")
