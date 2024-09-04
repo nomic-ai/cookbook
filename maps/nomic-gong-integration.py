@@ -7,10 +7,10 @@ utterance, speaker_name, speaker_email, speaker_affiliation, percentage_into_cal
 """
 import os, requests, jsonlines, csv
 
-GONG_ACCESS_KEY = 'L266QYQI3TM3HU7J4XBDWUFDOTHAXO5P'
+GONG_ACCESS_KEY = ''
 GONG_ACCESS_KEY_SECRET = os.environ['GONG_ACCESS_KEY_SECRET']
 
-GONG_API_PATH = 'https://us-71666.api.gong.io'
+GONG_API_PATH = ''
 
 
 
