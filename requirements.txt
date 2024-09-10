@@ -2,3 +2,5 @@ nomic
 datasets
 zstandard
 datefinder
+zdesk
+pandas
