@@ -2,7 +2,7 @@ name: Federal Register Job
 
 on:
   schedule:
-    - cron: '0 19 * * *' # 3:00 PM Eastern Time UTC every day
+    - cron: '30 20 * * *' # 4:30 PM Eastern Time UTC every day
   workflow_dispatch:
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./data/federal_register_job
+        working-directory: ./data/federal_register_job/github_action_workflow
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
