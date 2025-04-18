@@ -2,7 +2,7 @@ name: Federal Register Job
 
 on:
   schedule:
-    - cron: '0 18 * * *' # 2:00 PM Eastern Time every day
+    - cron: '0 19 * * *' # 3:00 PM Eastern Time UTC every day
   workflow_dispatch:
 
 jobs:
@@ -24,6 +24,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Upload yesterday's Federal Register data to Nomic Atlas
+        env:
+          NOMIC_API_KEY: ${{ secrets.NOMIC_API_KEY }}
         run: |
           YESTERDAY_DATE=$(date -d "yesterday" '+%Y-%m-%d')
           python process_data.py --date=$YESTERDAY_DATE 
