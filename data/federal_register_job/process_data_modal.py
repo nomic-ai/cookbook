@@ -66,7 +66,7 @@ def upload_to_atlas(records):
 @app.function(
     image=image, 
     secrets=[modal.Secret.from_name("nomic-api-key")], 
-    schedule=modal.Cron("30 20 * * *")
+    schedule=modal.Cron("30 20 * * *") # 4:30 PM Eastern Time UTC every day
 )
 def daily_job():
     """Modal function that runs daily to fetch and upload Federal Register data."""
