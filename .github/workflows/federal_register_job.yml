@@ -1,0 +1,29 @@
+name: Federal Register Job
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # 2:00 PM Eastern Time every day
+  workflow_dispatch:
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./data/federal_register_job
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Upload yesterday's Federal Register data to Nomic Atlas
+        run: |
+          YESTERDAY_DATE=$(date -d "yesterday" '+%Y-%m-%d')
+          python process_data.py --date=$YESTERDAY_DATE 
