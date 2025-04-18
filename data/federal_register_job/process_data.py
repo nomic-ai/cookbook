@@ -1,7 +1,11 @@
 from argparse import ArgumentParser
 from datetime import date
+import nomic
 from nomic import AtlasDataset
+import os
 import requests
+
+nomic.login(os.environ.get("NOMIC_API_KEY"))
 
 def fetch_data(target_date_str):
     """Fetches data from Federal Register API for a specific date."""
